@@ -93,6 +93,16 @@
       </select>
     </div>
     <div style="margin-top:12px">
+      <label for="bitrate">Recording quality (upload speed)</label>
+      <select id="bitrate">
+        <option value="24000">24 kbps (fastest upload, ~0.18 MB/min)</option>
+        <option value="32000">32 kbps (fast upload, ~0.24 MB/min)</option>
+        <option value="64000">64 kbps (balanced, ~0.48 MB/min)</option>
+        <option value="128000">128 kbps (higher quality, ~0.96 MB/min)</option>
+        <option value="">Browser default</option>
+      </select>
+    </div>
+    <div style="margin-top:12px">
       <label for="terms">Extra words (optional)</label>
       <textarea id="terms" style="min-height:90px" placeholder="Optional. Leave empty and the AI will find the correct terms itself."></textarea>
       <p class="hint">Optional hints, separated by commas. Not needed: the AI fixes terms from context.</p>
@@ -155,9 +165,11 @@ function termsText() { return ($('terms').value || '').replace(/\s+/g, ' ').trim
 try {
   const t = localStorage.getItem('extra_terms'); if (t) $('terms').value = t;
   const m = localStorage.getItem('asr_model'); if (m) $('model').value = m;
+  const b = localStorage.getItem('rec_bitrate'); if (b !== null) $('bitrate').value = b;
 } catch (e) {}
 $('terms').addEventListener('input', () => { try { localStorage.setItem('extra_terms', $('terms').value); } catch (e) {} });
 $('model').addEventListener('change', () => { try { localStorage.setItem('asr_model', $('model').value); } catch (e) {} });
+$('bitrate').addEventListener('change', () => { try { localStorage.setItem('rec_bitrate', $('bitrate').value); } catch (e) {} });
 
 function setStatus(msg, isErr) {
   $('status').textContent = msg;
@@ -380,7 +392,15 @@ $('recBtn').addEventListener('click', async () => {
     return;
   }
   const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
-  rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+  const bps = Number($('bitrate').value) || 0;
+  const opts = {};
+  if (type) opts.mimeType = type;
+  if (bps > 0) opts.audioBitsPerSecond = bps;
+  try {
+    rec = new MediaRecorder(stream, Object.keys(opts).length ? opts : undefined);
+  } catch (e) {
+    rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+  }
   chunks = [];
   rec.ondataavailable = ev => { if (ev.data.size) chunks.push(ev.data); };
   rec.onstop = () => {
