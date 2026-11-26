@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick Transcribe</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d2320; --muted: #66706b;
+    --line: #d9dcd6; --accent: #1f6f5c; --accent-ink: #ffffff; --rec: #c2392b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141816; --card: #1d2320; --ink: #e8ece9; --muted: #98a39d;
+      --line: #2e3733; --accent: #4cb59a; --accent-ink: #0d1411; --rec: #e5604f;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 16px; max-width: 640px; margin: 0 auto;
+  }
+  h1 { font-size: 1.35rem; margin: 4px 0 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: 4px; }
+  input[type=password], input[type=text], select, textarea {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  }
+  textarea { min-height: 220px; resize: vertical; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 140px; }
+  button, .filebtn {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 14px;
+    background: var(--accent); color: var(--accent-ink); cursor: pointer; text-align: center;
+  }
+  button.rec { background: var(--rec); color: #fff; }
+  button.alt, .filebtn.alt { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: default; }
+  .filebtn { display: block; }
+  .status { color: var(--muted); font-size: .92rem; min-height: 1.4em; margin: 10px 0 0; }
+  .status.err { color: var(--rec); }
+  .hint { color: var(--muted); font-size: .85rem; margin: 6px 0 0; }
+  .recbox {
+    display: none; align-items: center; gap: 14px; margin-top: 12px; padding: 12px 14px;
+    border: 1px solid var(--rec); border-radius: 10px; background: var(--bg);
+  }
+  .recbox.on { display: flex; }
+  .dot { position: relative; width: 16px; height: 16px; flex: none; border-radius: 50%; background: var(--rec); }
+  .dot::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--rec);
+    animation: ping 1.2s ease-out infinite;
+  }
+  @keyframes ping { from { transform: scale(1); opacity: .6; } to { transform: scale(2.6); opacity: 0; } }
+  .recbox .label { font-weight: 600; }
+  .recbox .time { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .bars { display: flex; align-items: center; gap: 4px; height: 32px; margin-left: auto; }
+  .bars i { display: block; width: 5px; height: 4px; border-radius: 3px; background: var(--rec); transition: height .08s linear; }
+  .preview { min-height: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); overflow-x: auto; }
+  .preview p { margin: 0 0 .8em; }
+  .preview .katex-display { overflow-x: auto; overflow-y: hidden; }
+  @media (prefers-reduced-motion: reduce) { .dot::after { animation: none; } }
+</style>
+</head>
+<body>
+  <h1>Quick Transcribe</h1>
+
+  <div class="card">
+    <label for="key">Groq API key (saved only on this phone)</label>
+    <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
+    <p class="hint">Paste once. It is kept in this browser and is never in the page file.</p>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <button id="recBtn" class="rec">Start recording</button>
+      <label class="filebtn alt" for="fileInput" style="margin:0">Choose audio file</label>
+      <input type="file" id="fileInput" accept="audio/*,video/*" style="display:none">
+    </div>
+    <div class="recbox" id="recBox" aria-live="polite">
+      <span class="dot"></span>
+      <span class="label">Recording</span>
+      <span class="time" id="recTime">0:00</span>
+      <span class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+    </div>
+    <div style="margin-top:12px">
+      <label for="model">Accuracy</label>
+      <select id="model">
+        <option value="whisper-large-v3">Most accurate (large-v3)</option>
+        <option value="whisper-large-v3-turbo">Faster (turbo)</option>
+      </select>
+    </div>
+    <div style="margin-top:12px">
+      <label for="terms">Extra words (optional)</label>
+      <textarea id="terms" style="min-height:90px" placeholder="Optional. Leave empty and the AI will find the correct terms itself."></textarea>
+      <p class="hint">Optional hints, separated by commas. Not needed: the AI fixes terms from context.</p>
+    </div>
+    <div style="margin-top:12px">
+      <label for="lang">Language</label>
+      <select id="lang">
+        <option value="en">English</option>
+        <option value="">Auto detect</option>
+        <option value="hi">Hindi</option>
+        <option value="or">Odia</option>
+        <option value="bn">Bengali</option>
+        <option value="ta">Tamil</option>
+        <option value="te">Telugu</option>
+      </select>
+    </div>
+    <div style="margin-top:12px">
+      <label for="style">Polish style</label>
+      <select id="style">
+        <option value="notes">Formatted notes (Markdown)</option>
+        <option value="bio">Exact (fix biology terms only)</option>
+        <option value="clean">Clean up (keep my words)</option>
+        <option value="formal">Formal and clear</option>
+        <option value="short">Short summary</option>
+        <option value="bullets">Bullet points</option>
+      </select>
+    </div>
+    <p class="status" id="status">Ready.</p>
+  </div>
+
+  <div class="card">
+    <label for="out">Text</label>
+    <textarea id="out" placeholder="Your transcript appears here."></textarea>
+    <div id="preview" class="preview" style="display:none"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="polishBtn">Polish text</button>
+      <button id="undoBtn" class="alt" disabled>Undo polish</button>
+      <button id="prevBtn" class="alt">Preview</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="copyBtn" class="alt">Copy text</button>
+      <button id="clearBtn" class="alt">Clear</button>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+const MODEL = 'whisper-large-v3-turbo';
+const API = 'https://api.groq.com/openai/v1/audio/transcriptions';
+const MAX_DIRECT = 24 * 1024 * 1024;   // send as-is if smaller than this
+const CHUNK_SECONDS = 600;             // 10 min per piece for big files
+
+/* ---- key storage ---- */
+try { $('key').value = localStorage.getItem('groq_key') || ''; } catch (e) {}
+$('key').addEventListener('input', () => {
+  try { localStorage.setItem('groq_key', $('key').value.trim()); } catch (e) {}
+});
+
+function termsText() { return ($('terms').value || '').replace(/\s+/g, ' ').trim(); }
+try {
+  const t = localStorage.getItem('extra_terms'); if (t) $('terms').value = t;
+  const m = localStorage.getItem('asr_model'); if (m) $('model').value = m;
+} catch (e) {}
+$('terms').addEventListener('input', () => { try { localStorage.setItem('extra_terms', $('terms').value); } catch (e) {} });
+$('model').addEventListener('change', () => { try { localStorage.setItem('asr_model', $('model').value); } catch (e) {} });
+
+function setStatus(msg, isErr) {
+  $('status').textContent = msg;
+  $('status').className = 'status' + (isErr ? ' err' : '');
+}
+
+/* ---- Groq call ---- */
+async function groqCall(blob, filename) {
+  const key = $('key').value.trim();
+  if (!key) throw new Error('Paste your Groq API key first.');
+  const form = new FormData();
+  form.append('file', blob, filename);
+  form.append('model', $('model').value || MODEL);
+  form.append('response_format', 'json');
+  form.append('temperature', '0');
+  form.append('prompt', 'Biology text read aloud.' + (termsText() ? ' Terms: ' + termsText().slice(0, 500) : ''));
+  if ($('lang').value) form.append('language', $('lang').value);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(API, { method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: form });
+    if (res.status === 429 && attempt < 2) {
+      const wait = Number(res.headers.get('retry-after')) || 5;
+      setStatus('Rate limit reached. Waiting ' + wait + ' s...');
+      await new Promise(r => setTimeout(r, wait * 1000));
+      continue;
+    }
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).error.message; } catch (e) {}
+      if (res.status === 401) throw new Error('Key not accepted (401). Check the key.');
+      if (res.status === 413) throw new Error('File too large (413).');
+      throw new Error('Groq error ' + res.status + (detail ? ': ' + detail : ''));
+    }
+    return (await res.json()).text || '';
+  }
+  throw new Error('Rate limit still active. Try again in a minute.');
+}
+
+/* ---- polish (Groq chat model) ---- */
+const CHAT_API = 'https://api.groq.com/openai/v1/chat/completions';
+const CHAT_MODEL = 'openai/gpt-oss-120b';
+const BASE_RULES = 'You edit speech-to-text transcripts. Keep the SAME language as the input and never translate. ' +
+  'Do not add facts or opinions. Output only the edited text, with no intro and no notes.';
+const STYLES = {
+  notes: 'You are a professional academic editor, not a content creator. Improve only how the text is written and presented; preserve what the speaker says. The input is a speech-to-text transcript and is the ONLY source of information. ' +
+    '1) PRESERVE: keep all meaning, information, facts, examples and explanations, in the speaker\'s order. Never add information, definitions, examples, concepts or explanations. Never remove meaningful information. Never summarise. ' +
+    '2) LANGUAGE: correct grammar, spelling and speech-to-text errors (fix misheard words into the correct subject terms, deciding from context). Remove repetitions, filler words, stutters and false starts. Apply self-corrections ("sorry", "I mean", "no wait", "actually", "not X, Y", "instead"): keep only the final corrected version at the place it belongs and delete the mistake and the correction phrase. Turn informal speech into clear, professional academic language without changing the meaning or the level of explanation. ' +
+    '3) STRUCTURE (Markdown): use "## " headings and "### " subheadings only when the content has clearly separate topics; use paragraphs, "- " bullets and "1. " numbered lists where they improve readability. Do not force headings or bullets when a simple paragraph is better. ' +
+    '4) EQUATIONS AND NOTATION: write maths, chemistry and units in proper notation using LaTeX. INLINE math between single dollar signs for expressions inside a sentence (for example $\\mathrm{H_2O}$, $\\mathrm{Ca^{2+}}$, $37\\,^\\circ\\mathrm{C}$). BLOCK math between double dollar signs on its own line for important or long equations and reactions, placed after the sentence that introduces it, which ends with a colon. Do not turn every scientific expression into a separate block. Keep the exact quantities, coefficients, symbols and relationships the speaker gave. Never show the LaTeX source separately, never put equations in code blocks, never use Unicode subscripts. Example: $$6\\,\\mathrm{CO_2} + 6\\,\\mathrm{H_2O} \\rightarrow \\mathrm{C_6H_{12}O_6} + 6\\,\\mathrm{O_2}$$ ' +
+    '5) ACCURACY: never silently change the speaker\'s statements. If something looks scientifically wrong or ambiguous, keep what the speaker intended instead of correcting it yourself. Correct only when the intended meaning is clearly determinable. If the meaning of something cannot be determined confidently, do not guess: reply with ONLY one line starting with "CLARIFY:" followed by a short question for the speaker. ' +
+    '6) OUTPUT: only the polished notes in Markdown, in the same language as the input. No introduction, summary, conclusion, explanation of changes or suggestions. Keep it concise while keeping all the information.',
+  bio: 'This is someone reading a biology text aloud. Keep EVERY sentence and the exact wording. Do not summarise, shorten, reword or add anything. Only: add correct punctuation and capital letters, fix every misheard word so it becomes the correct biology or scientific term (decide this yourself from the meaning and context of the whole text; do not rely on any fixed list), correct the spelling of scientific names and abbreviations (for example ATP, DNA, mRNA), write numbers and units correctly, and remove only accidental repeated words.',
+  clean: 'Fix punctuation, capital letters, spelling and obvious recognition mistakes. Remove filler words, stutters and false starts. Keep the speaker\'s own wording and meaning. Split into short paragraphs where the topic changes.',
+  formal: 'Rewrite as clear, well-organised, formal text. Fix grammar and punctuation, remove filler words, keep all the meaning.',
+  short: 'Write a short summary of the main points in 2 to 5 sentences.',
+  bullets: 'Turn the content into clear bullet points. Start each line with "- ". Keep every important point.'
+};
+let beforePolish = null;
+
+function splitForPolish(text, maxLen) {
+  const sentences = text.split(/(?<=[.!?।\n])\s+/);
+  const parts = []; let cur = '';
+  for (const s of sentences) {
+    if (cur && (cur.length + s.length) > maxLen) { parts.push(cur); cur = ''; }
+    cur += (cur ? ' ' : '') + s;
+  }
+  if (cur) parts.push(cur);
+  return parts;
+}
+
+async function polishCall(text, style) {
+  const key = $('key').value.trim();
+  if (!key) throw new Error('Paste your Groq API key first.');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(CHAT_API, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: CHAT_MODEL, temperature: 0.2, reasoning_effort: 'low',
+        messages: [
+          { role: 'system', content: BASE_RULES + ' ' + STYLES[style] + (termsText() ? ' Optional hints for terms that may appear: ' + termsText() + '.' : '') },
+          { role: 'user', content: text }
+        ]
+      })
+    });
+    if (res.status === 429 && attempt < 2) {
+      const wait = Number(res.headers.get('retry-after')) || 8;
+      setStatus('Rate limit reached. Waiting ' + wait + ' s...');
+      await new Promise(r => setTimeout(r, wait * 1000));
+      continue;
+    }
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).error.message; } catch (e) {}
+      throw new Error('Polish error ' + res.status + (detail ? ': ' + detail : ''));
+    }
+    return ((await res.json()).choices[0].message.content || '').trim();
+  }
+  throw new Error('Rate limit still active. Try again in a minute.');
+}
+
+async function polishText(text) {
+  const style = $('style').value;
+  // short summary needs the whole text in one go when possible
+  const parts = splitForPolish(text, style === 'short' ? 20000 : 5000);
+  const out = [];
+  for (let i = 0; i < parts.length; i++) {
+    setStatus('Polishing' + (parts.length > 1 ? ' part ' + (i + 1) + ' of ' + parts.length : '') + '...');
+    const r = await polishCall(parts[i], style);
+    if (/^\s*CLARIFY:/i.test(r)) throw new Error(r.trim());
+    out.push(r);
+  }
+  return out.join('\n\n');
+}
+
+/* ---- big file helpers: decode, resample to 16 kHz mono, cut into WAV pieces ---- */
+async function toPcm16k(blob) {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+  ctx.close();
+  const off = new OfflineAudioContext(1, Math.ceil(decoded.duration * 16000), 16000);
+  const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
+  return (await off.startRendering()).getChannelData(0);
+}
+function pcmToWav(pcm, sr) {
+  const buf = new ArrayBuffer(44 + pcm.length * 2), v = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + pcm.length * 2, true); w(8, 'WAVE'); w(12, 'fmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, 'data'); v.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i++) {
+    const s = Math.max(-1, Math.min(1, pcm[i]));
+    v.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  }
+  return new Blob([buf], { type: 'audio/wav' });
+}
+
+async function transcribe(blob, name) {
+  $('recBtn').disabled = true;
+  try {
+    const t0 = performance.now();
+    let text = '';
+    if (blob.size <= MAX_DIRECT) {
+      setStatus('Transcribing (' + (blob.size / 1048576).toFixed(1) + ' MB)...');
+      text = await groqCall(blob, name);
+    } else {
+      setStatus('Big file. Preparing audio...');
+      const pcm = await toPcm16k(blob);
+      const step = CHUNK_SECONDS * 16000;
+      const parts = Math.ceil(pcm.length / step);
+      const texts = [];
+      for (let i = 0; i < parts; i++) {
+        setStatus('Transcribing part ' + (i + 1) + ' of ' + parts + '...');
+        texts.push(await groqCall(pcmToWav(pcm.subarray(i * step, (i + 1) * step), 16000), 'part' + i + '.wav'));
+      }
+      text = texts.join(' ');
+    }
+    text = text.trim();
+    const old = $('out').value ? $('out').value.trim() + '\n\n' : '';
+    let note = '';
+    $('out').value = old + text; refreshPreview();
+    setStatus('Done in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s.' + note, !!note);
+  } catch (e) {
+    console.error(e);
+    setStatus(e.message, true);
+  } finally {
+    $('recBtn').disabled = false;
+  }
+}
+
+/* ---- file upload ---- */
+$('fileInput').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) transcribe(f, f.name || 'audio');
+  e.target.value = '';
+});
+
+/* ---- recording indicator: pulsing dot, timer, live sound bars ---- */
+let meterCtx = null, meterRaf = 0, meterTimer = 0;
+function startMeter(s) {
+  $('recBox').classList.add('on');
+  const t0 = Date.now();
+  $('recTime').textContent = '0:00';
+  meterTimer = setInterval(() => {
+    const sec = Math.floor((Date.now() - t0) / 1000);
+    $('recTime').textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+  }, 250);
+  try {
+    meterCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const an = meterCtx.createAnalyser(); an.fftSize = 64;
+    meterCtx.createMediaStreamSource(s).connect(an);
+    const data = new Uint8Array(an.frequencyBinCount);
+    const bars = $('bars').children;
+    const draw = () => {
+      an.getByteFrequencyData(data);
+      for (let i = 0; i < bars.length; i++) {
+        bars[i].style.height = Math.max(4, (data[i + 1] / 255) * 32) + 'px';
+      }
+      meterRaf = requestAnimationFrame(draw);
+    };
+    draw();
+  } catch (e) { /* bars stay flat, dot and timer still work */ }
+}
+function stopMeter() {
+  $('recBox').classList.remove('on');
+  clearInterval(meterTimer); cancelAnimationFrame(meterRaf);
+  if (meterCtx) { try { meterCtx.close(); } catch (e) {} meterCtx = null; }
+  Array.from($('bars').children).forEach(b => { b.style.height = '4px'; });
+}
+
+/* ---- recording ---- */
+let rec = null, chunks = [], stream = null;
+$('recBtn').addEventListener('click', async () => {
+  if (rec && rec.state === 'recording') { rec.stop(); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (e) {
+    setStatus('Microphone not allowed. This page must open over https and you must allow the mic.', true);
+    return;
+  }
+  const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+  chunks = [];
+  rec.ondataavailable = ev => { if (ev.data.size) chunks.push(ev.data); };
+  rec.onstop = () => {
+    stopMeter();
+    stream.getTracks().forEach(t => t.stop());
+    $('recBtn').textContent = 'Start recording';
+    const mime = rec.mimeType || 'audio/webm';
+    const blob = new Blob(chunks, { type: mime });
+    transcribe(blob, 'recording.' + (mime.includes('mp4') ? 'mp4' : 'webm'));
+  };
+  rec.start();
+  startMeter(stream);
+  $('recBtn').textContent = 'Stop and transcribe';
+  setStatus('Recording...');
+});
+
+/* ---- text buttons ---- */
+$('copyBtn').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('out').value); setStatus('Copied.'); }
+  catch (e) { $('out').select(); setStatus('Select the text and copy it by hand.', true); }
+});
+$('clearBtn').addEventListener('click', () => {
+  $('out').value = ''; refreshPreview(); beforePolish = null; $('undoBtn').disabled = true; setStatus('Ready.');
+});
+
+$('polishBtn').addEventListener('click', async () => {
+  const text = $('out').value.trim();
+  if (!text) { setStatus('Nothing to polish yet.', true); return; }
+  $('polishBtn').disabled = true;
+  try {
+    const result = await polishText(text);
+    beforePolish = $('out').value;
+    $('out').value = result; refreshPreview();
+    $('undoBtn').disabled = false;
+    setStatus('Polished.');
+  } catch (e) {
+    console.error(e); setStatus(e.message, true);
+  } finally { $('polishBtn').disabled = false; }
+});
+$('undoBtn').addEventListener('click', () => {
+  if (beforePolish === null) return;
+  $('out').value = beforePolish; refreshPreview(); beforePolish = null; $('undoBtn').disabled = true; setStatus('Restored the text before polish.');
+});
+
+/* ---- preview: Markdown + LaTeX (inline $..$ and block $$..$$) ---- */
+const MARKED_URL = 'https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js';
+const KATEX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js';
+const KATEX_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css';
+let libsPromise = null, previewOn = false;
+function loadLibs() {
+  if (libsPromise) return libsPromise;
+  libsPromise = new Promise((resolve, reject) => {
+    const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = KATEX_CSS; document.head.appendChild(css);
+    let n = 0;
+    for (const u of [MARKED_URL, KATEX_URL]) {
+      const sc = document.createElement('script'); sc.src = u;
+      sc.onload = () => { if (++n === 2) resolve(); };
+      sc.onerror = () => { libsPromise = null; reject(new Error('Preview needs internet to load its math library.')); };
+      document.head.appendChild(sc);
+    }
+  });
+  return libsPromise;
+}
+function renderMarkdown(src) {
+  const math = [];
+  const keep = (tex, display) => { math.push({ tex: tex.trim(), display }); return 'zzmath' + (math.length - 1) + 'zz'; };
+  src = src.replace(/\$\$([\s\S]+?)\$\$/g, (m, t) => keep(t, true))
+           .replace(/\$(?!\s)([^\n$]*?\S)\$/g, (m, t) => keep(t, false));
+  src = src.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  let html = marked.parse(src, { breaks: true });
+  return html.replace(/zzmath(\d+)zz/g, (m, i) => {
+    try { return katex.renderToString(math[i].tex, { displayMode: math[i].display, throwOnError: false }); }
+    catch (e) { return math[i].tex; }
+  });
+}
+async function refreshPreview() {
+  if (!previewOn) return;
+  try {
+    await loadLibs();
+    $('preview').innerHTML = renderMarkdown($('out').value) || '<p class="hint">Nothing to preview.</p>';
+  } catch (e) { setStatus(e.message, true); previewOn = false; showPreviewState(); }
+}
+function showPreviewState() {
+  $('preview').style.display = previewOn ? 'block' : 'none';
+  $('out').style.display = previewOn ? 'none' : 'block';
+  $('prevBtn').textContent = previewOn ? 'Edit' : 'Preview';
+}
+$('prevBtn').addEventListener('click', () => { previewOn = !previewOn; showPreviewState(); refreshPreview(); });
+
+try {
+  const st = localStorage.getItem('polish_style'); if (st && STYLES[st]) $('style').value = st;
+} catch (e) {}
+$('style').addEventListener('change', () => { try { localStorage.setItem('polish_style', $('style').value); } catch (e) {} });
+</script>
+</body>
+</html>
