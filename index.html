@@ -2,151 +2,274 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Quick Transcribe</title>
 <style>
   :root {
-    --bg: #f6f5f1; --card: #ffffff; --ink: #1d2320; --muted: #66706b;
-    --line: #d9dcd6; --accent: #1f6f5c; --accent-ink: #ffffff; --rec: #c2392b;
+    --ts: 1; --btn: 52px;
+    --bg: #f4f3ee; --card: #ffffff; --ink: #1d2320; --muted: #66706b;
+    --line: #dcdfd8; --accent: #1f6f5c; --accent-ink: #ffffff; --rec: #c2392b;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.05);
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #141816; --card: #1d2320; --ink: #e8ece9; --muted: #98a39d;
-      --line: #2e3733; --accent: #4cb59a; --accent-ink: #0d1411; --rec: #e5604f;
+    :root:not([data-theme="light"]) {
+      --bg: #101412; --card: #1a201d; --ink: #e8ece9; --muted: #98a39d;
+      --line: #2b3430; --accent: #4cb59a; --accent-ink: #0d1411; --rec: #e5604f;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
     }
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
+  :root[data-theme="dark"] {
+    --bg: #101412; --card: #1a201d; --ink: #e8ece9; --muted: #98a39d;
+    --line: #2b3430; --accent: #4cb59a; --accent-ink: #0d1411; --rec: #e5604f;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: calc(16px * var(--ts)); }
+  html, body { margin: 0; height: 100%; }
   body {
     background: var(--bg); color: var(--ink);
-    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    padding: 16px; max-width: 640px; margin: 0 auto;
+    font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   }
-  h1 { font-size: 1.35rem; margin: 4px 0 14px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
-  label { display: block; font-size: .9rem; color: var(--muted); margin-bottom: 4px; }
-  input[type=password], input[type=text], select, textarea {
-    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
-    border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  .view {
+    display: none; flex-direction: column; height: 100dvh; max-width: 680px; margin: 0 auto;
+    padding: max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
   }
-  textarea { min-height: 220px; resize: vertical; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .row > * { flex: 1 1 140px; }
-  button, .filebtn {
-    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 14px;
-    background: var(--accent); color: var(--accent-ink); cursor: pointer; text-align: center;
+  .view.on { display: flex; }
+
+  /* header */
+  .bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex: none; }
+  .bar h1 { font-size: 1.25rem; margin: 0; flex: 1; letter-spacing: -.01em; }
+
+  /* icon buttons */
+  .ib {
+    width: var(--btn); height: var(--btn); flex: none; display: grid; place-items: center;
+    border-radius: calc(var(--btn) * .32); border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); cursor: pointer; padding: 0;
+    box-shadow: var(--shadow); transition: transform .08s, opacity .15s;
   }
-  button.rec { background: var(--rec); color: #fff; }
-  button.alt, .filebtn.alt { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-  button:disabled { opacity: .5; cursor: default; }
-  .filebtn { display: block; }
-  .status { color: var(--muted); font-size: .92rem; min-height: 1.4em; margin: 10px 0 0; }
-  .status.err { color: var(--rec); }
-  .hint { color: var(--muted); font-size: .85rem; margin: 6px 0 0; }
+  .ib:active { transform: scale(.93); }
+  .ib:disabled { opacity: .35; cursor: default; box-shadow: none; }
+  .ib svg {
+    width: calc(var(--btn) * .46); height: calc(var(--btn) * .46);
+    stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  .ib.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .ib.danger { background: var(--rec); color: #fff; border-color: transparent; }
+  .ib.ghost { box-shadow: none; background: transparent; }
+  .ib.big { width: calc(var(--btn) * 1.55); height: calc(var(--btn) * 1.55); border-radius: 50%; }
+  .ib.big svg { width: calc(var(--btn) * .7); height: calc(var(--btn) * .7); }
+  .ib.hide { visibility: hidden; }
+
+  /* recorder */
+  .recorder { flex: none; display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .controls { display: flex; align-items: center; justify-content: center; gap: calc(var(--btn) * .7); width: 100%; }
   .recbox {
-    display: none; align-items: center; gap: 14px; margin-top: 12px; padding: 12px 14px;
-    border: 1px solid var(--rec); border-radius: 10px; background: var(--bg);
+    display: none; align-items: center; gap: 12px; width: 100%; padding: 10px 14px;
+    border: 1px solid var(--rec); border-radius: 14px; background: var(--card);
   }
   .recbox.on { display: flex; }
-  .dot { position: relative; width: 16px; height: 16px; flex: none; border-radius: 50%; background: var(--rec); }
+  .dot { position: relative; width: 14px; height: 14px; flex: none; border-radius: 50%; background: var(--rec); }
   .dot::after {
     content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--rec);
     animation: ping 1.2s ease-out infinite;
   }
   @keyframes ping { from { transform: scale(1); opacity: .6; } to { transform: scale(2.6); opacity: 0; } }
-  .recbox .label { font-weight: 600; }
-  .recbox .time { font-variant-numeric: tabular-nums; color: var(--muted); }
-  .bars { display: flex; align-items: center; gap: 4px; height: 32px; margin-left: auto; }
+  .recbox .time { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .bars { display: flex; align-items: center; gap: 4px; height: 30px; margin-left: auto; }
   .bars i { display: block; width: 5px; height: 4px; border-radius: 3px; background: var(--rec); transition: height .08s linear; }
-  .preview { min-height: 220px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--bg); overflow-x: auto; }
+  .status { color: var(--muted); font-size: .88rem; min-height: 1.3em; margin: 0; text-align: center; }
+  .status.err { color: var(--rec); }
+
+  /* output card */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+  .out { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 10px; }
+  .outhead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; color: var(--muted); font-size: .85rem; }
+  .outhead span { flex: 1; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  select, input[type=password], input[type=text], textarea {
+    font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px; width: 100%;
+  }
+  .outhead select { width: auto; padding: 6px 8px; font-size: .88rem; }
+  #out, .preview { flex: 1; min-height: 0; width: 100%; resize: none; }
+  #out { border: 0; background: transparent; padding: 4px; outline: none; }
+  .preview { display: none; overflow: auto; padding: 4px; }
   .preview p { margin: 0 0 .8em; }
+  .preview h2, .preview h3 { margin: .9em 0 .4em; line-height: 1.25; }
+  .preview ul, .preview ol { margin: 0 0 .8em; padding-left: 1.3em; }
   .preview .katex-display { overflow-x: auto; overflow-y: hidden; }
-  @media (prefers-reduced-motion: reduce) { .dot::after { animation: none; } }
+
+  /* toolbar */
+  .toolbar { flex: none; display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+
+  /* settings */
+  .scroll { flex: 1; overflow-y: auto; padding-bottom: 12px; }
+  .group { padding: 14px; margin-bottom: 12px; }
+  .group h2 { margin: 0 0 12px; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  label.l { display: block; font-size: .9rem; margin-bottom: 5px; }
+  .hint { color: var(--muted); font-size: .8rem; margin: 5px 0 0; }
+  .inline { display: flex; gap: 8px; align-items: center; }
+  .inline .ib { width: 44px; height: 44px; }
+  .inline .ib svg { width: 20px; height: 20px; }
+  .slider { display: flex; align-items: center; gap: 12px; }
+  .slider input { flex: 1; accent-color: var(--accent); }
+  .slider b { min-width: 3.4em; text-align: right; font-variant-numeric: tabular-nums; }
+  .textbtn {
+    font: inherit; font-weight: 600; border: 1px solid var(--line); background: transparent; color: var(--ink);
+    border-radius: 10px; padding: 10px 14px; cursor: pointer; width: 100%;
+  }
+  @media (prefers-reduced-motion: reduce) { .dot::after { animation: none; } .ib { transition: none; } }
 </style>
 </head>
 <body>
-  <h1>Quick Transcribe</h1>
 
-  <div class="card">
-    <label for="key">Groq API key (saved only on this phone)</label>
-    <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
-    <p class="hint">Paste once. It is kept in this browser and is never in the page file.</p>
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h8M18 6h2M4 12h2M12 12h8M4 18h10M20 18h0"/><circle cx="15" cy="6" r="2.2"/><circle cx="9" cy="12" r="2.2"/><circle cx="17" cy="18" r="2.2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></symbol>
+</svg>
+
+<!-- MAIN -->
+<main class="view on" id="viewMain">
+  <div class="bar">
+    <h1>Quick Transcribe</h1>
+    <button class="ib" id="settingsBtn" aria-label="Settings" title="Settings"><svg><use href="#i-sliders"/></svg></button>
   </div>
 
-  <div class="card">
-    <div class="row">
-      <button id="recBtn" class="rec">Start recording</button>
-      <label class="filebtn alt" for="fileInput" style="margin:0">Choose audio file</label>
-      <input type="file" id="fileInput" accept="audio/*,video/*" style="display:none">
-    </div>
+  <section class="recorder">
     <div class="recbox" id="recBox" aria-live="polite">
       <span class="dot"></span>
-      <span class="label">Recording</span>
       <span class="time" id="recTime">0:00</span>
       <span class="bars" id="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
     </div>
-    <div style="margin-top:12px">
-      <label for="model">Accuracy</label>
-      <select id="model">
-        <option value="whisper-large-v3">Most accurate (large-v3)</option>
-        <option value="whisper-large-v3-turbo">Faster (turbo)</option>
-      </select>
+    <div class="controls">
+      <button class="ib" id="fileBtn" aria-label="Choose audio file" title="Choose audio file"><svg><use href="#i-upload"/></svg></button>
+      <input type="file" id="fileInput" accept="audio/*,video/*" style="display:none">
+      <button class="ib primary big" id="recBtn" aria-label="Start recording" title="Start recording"><svg><use href="#i-mic" id="recIcon"/></svg></button>
+      <button class="ib hide" id="cancelBtn" aria-label="Cancel" title="Cancel (nothing is uploaded)"><svg><use href="#i-x"/></svg></button>
     </div>
-    <div style="margin-top:12px">
-      <label for="bitrate">Recording quality (upload speed)</label>
-      <select id="bitrate">
-        <option value="24000">24 kbps (fastest upload, ~0.18 MB/min)</option>
-        <option value="32000">32 kbps (fast upload, ~0.24 MB/min)</option>
-        <option value="64000">64 kbps (balanced, ~0.48 MB/min)</option>
-        <option value="128000">128 kbps (higher quality, ~0.96 MB/min)</option>
-        <option value="">Browser default</option>
-      </select>
-    </div>
-    <div style="margin-top:12px">
-      <label for="terms">Extra words (optional)</label>
-      <textarea id="terms" style="min-height:90px" placeholder="Optional. Leave empty and the AI will find the correct terms itself."></textarea>
-      <p class="hint">Optional hints, separated by commas. Not needed: the AI fixes terms from context.</p>
-    </div>
-    <div style="margin-top:12px">
-      <label for="lang">Language</label>
-      <select id="lang">
-        <option value="en">English</option>
-        <option value="">Auto detect</option>
-        <option value="hi">Hindi</option>
-        <option value="or">Odia</option>
-        <option value="bn">Bengali</option>
-        <option value="ta">Tamil</option>
-        <option value="te">Telugu</option>
-      </select>
-    </div>
-    <div style="margin-top:12px">
-      <label for="style">Polish style</label>
-      <select id="style">
-        <option value="notes">Formatted notes (Markdown)</option>
-        <option value="bio">Exact (fix biology terms only)</option>
-        <option value="clean">Clean up (keep my words)</option>
-        <option value="formal">Formal and clear</option>
+    <p class="status" id="status" aria-live="polite">Ready.</p>
+  </section>
+
+  <section class="card out">
+    <div class="outhead">
+      <span>Text</span>
+      <select id="style" aria-label="Polish style">
+        <option value="notes">Formatted notes</option>
+        <option value="bio">Exact (biology)</option>
+        <option value="clean">Clean up</option>
+        <option value="formal">Formal</option>
         <option value="short">Short summary</option>
         <option value="bullets">Bullet points</option>
       </select>
     </div>
-    <p class="status" id="status">Ready.</p>
-  </div>
-
-  <div class="card">
-    <label for="out">Text</label>
     <textarea id="out" placeholder="Your transcript appears here."></textarea>
-    <div id="preview" class="preview" style="display:none"></div>
-    <div class="row" style="margin-top:10px">
-      <button id="polishBtn">Polish text</button>
-      <button id="undoBtn" class="alt" disabled>Undo polish</button>
-      <button id="prevBtn" class="alt">Preview</button>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button id="copyBtn" class="alt">Copy text</button>
-      <button id="clearBtn" class="alt">Clear</button>
-    </div>
+    <div id="preview" class="preview"></div>
+  </section>
+
+  <div class="toolbar">
+    <button class="ib primary" id="polishBtn" aria-label="Polish text" title="Polish text"><svg><use href="#i-wand"/></svg></button>
+    <button class="ib" id="undoBtn" aria-label="Undo polish" title="Undo polish" disabled><svg><use href="#i-undo"/></svg></button>
+    <button class="ib" id="prevBtn" aria-label="Preview" title="Preview"><svg><use href="#i-eye" id="prevIcon"/></svg></button>
+    <button class="ib" id="copyBtn" aria-label="Copy text" title="Copy text"><svg><use href="#i-copy"/></svg></button>
+    <button class="ib" id="clearBtn" aria-label="Clear" title="Clear"><svg><use href="#i-trash"/></svg></button>
   </div>
+</main>
+
+<!-- SETTINGS -->
+<main class="view" id="viewSettings">
+  <div class="bar">
+    <button class="ib" id="backBtn" aria-label="Back" title="Back"><svg><use href="#i-back"/></svg></button>
+    <h1>Settings</h1>
+  </div>
+  <div class="scroll">
+
+    <div class="card group">
+      <h2>Account</h2>
+      <div class="field">
+        <label class="l" for="key">Groq API key</label>
+        <div class="inline">
+          <input type="password" id="key" placeholder="gsk_..." autocomplete="off">
+          <button class="ib" id="keyEye" aria-label="Show key" title="Show / hide key"><svg><use href="#i-eye"/></svg></button>
+        </div>
+        <p class="hint">Saved only in this browser. It is never in the page file.</p>
+      </div>
+    </div>
+
+    <div class="card group">
+      <h2>Transcription</h2>
+      <div class="field">
+        <label class="l" for="model">Accuracy</label>
+        <select id="model">
+          <option value="whisper-large-v3">Most accurate (large-v3)</option>
+          <option value="whisper-large-v3-turbo">Faster (turbo)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="l" for="lang">Language</label>
+        <select id="lang">
+          <option value="en">English</option>
+          <option value="">Auto detect</option>
+          <option value="hi">Hindi</option>
+          <option value="or">Odia</option>
+          <option value="bn">Bengali</option>
+          <option value="ta">Tamil</option>
+          <option value="te">Telugu</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="l" for="bitrate">Recording quality</label>
+        <select id="bitrate">
+          <option value="24000">24 kbps (fastest upload, ~0.18 MB/min)</option>
+          <option value="32000">32 kbps (fast upload, ~0.24 MB/min)</option>
+          <option value="64000">64 kbps (balanced, ~0.48 MB/min)</option>
+          <option value="128000">128 kbps (higher quality, ~0.96 MB/min)</option>
+          <option value="">Browser default</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="l" for="terms">Extra words (optional)</label>
+        <textarea id="terms" rows="3" placeholder="Optional hints, separated by commas."></textarea>
+        <p class="hint">Not needed: the AI fixes terms from context.</p>
+      </div>
+    </div>
+
+    <div class="card group">
+      <h2>Appearance</h2>
+      <div class="field">
+        <label class="l" for="theme">Theme</label>
+        <select id="theme">
+          <option value="auto">Follow phone</option>
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="l" for="tsRange">Text size</label>
+        <div class="slider"><input type="range" id="tsRange" min="80" max="160" step="5"><b id="tsVal">100%</b></div>
+      </div>
+      <div class="field">
+        <label class="l" for="btnRange">Button size</label>
+        <div class="slider"><input type="range" id="btnRange" min="40" max="80" step="2"><b id="btnVal">52 px</b></div>
+      </div>
+      <div class="field">
+        <button class="textbtn" id="resetUi">Reset appearance</button>
+      </div>
+    </div>
+
+  </div>
+</main>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -155,31 +278,89 @@ const API = 'https://api.groq.com/openai/v1/audio/transcriptions';
 const MAX_DIRECT = 24 * 1024 * 1024;   // send as-is if smaller than this
 const CHUNK_SECONDS = 600;             // 10 min per piece for big files
 
-/* ---- key storage ---- */
-try { $('key').value = localStorage.getItem('groq_key') || ''; } catch (e) {}
-$('key').addEventListener('input', () => {
-  try { localStorage.setItem('groq_key', $('key').value.trim()); } catch (e) {}
+const store = {
+  get(k, d = '') { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+
+/* ---- views ---- */
+function show(view) {
+  $('viewMain').classList.toggle('on', view === 'main');
+  $('viewSettings').classList.toggle('on', view === 'settings');
+}
+$('settingsBtn').addEventListener('click', () => show('settings'));
+$('backBtn').addEventListener('click', () => show('main'));
+
+/* ---- appearance ---- */
+const UI_DEFAULT = { ts: 100, btn: 52, theme: 'auto' };
+function applyUi() {
+  const ts = Number(store.get('ui_ts', UI_DEFAULT.ts));
+  const btn = Number(store.get('ui_btn', UI_DEFAULT.btn));
+  const theme = store.get('ui_theme', UI_DEFAULT.theme);
+  const root = document.documentElement;
+  root.style.setProperty('--ts', ts / 100);
+  root.style.setProperty('--btn', btn + 'px');
+  if (theme === 'auto') root.removeAttribute('data-theme'); else root.setAttribute('data-theme', theme);
+  $('tsRange').value = ts; $('tsVal').textContent = ts + '%';
+  $('btnRange').value = btn; $('btnVal').textContent = btn + ' px';
+  $('theme').value = theme;
+}
+$('tsRange').addEventListener('input', e => { store.set('ui_ts', e.target.value); applyUi(); });
+$('btnRange').addEventListener('input', e => { store.set('ui_btn', e.target.value); applyUi(); });
+$('theme').addEventListener('change', e => { store.set('ui_theme', e.target.value); applyUi(); });
+$('resetUi').addEventListener('click', () => {
+  store.set('ui_ts', UI_DEFAULT.ts); store.set('ui_btn', UI_DEFAULT.btn); store.set('ui_theme', UI_DEFAULT.theme); applyUi();
 });
+applyUi();
+
+/* ---- settings storage ---- */
+$('key').value = store.get('groq_key');
+$('key').addEventListener('input', () => store.set('groq_key', $('key').value.trim()));
+$('keyEye').addEventListener('click', () => { $('key').type = $('key').type === 'password' ? 'text' : 'password'; });
 
 function termsText() { return ($('terms').value || '').replace(/\s+/g, ' ').trim(); }
-try {
-  const t = localStorage.getItem('extra_terms'); if (t) $('terms').value = t;
-  const m = localStorage.getItem('asr_model'); if (m) $('model').value = m;
-  const b = localStorage.getItem('rec_bitrate'); if (b !== null) $('bitrate').value = b;
-} catch (e) {}
-$('terms').addEventListener('input', () => { try { localStorage.setItem('extra_terms', $('terms').value); } catch (e) {} });
-$('model').addEventListener('change', () => { try { localStorage.setItem('asr_model', $('model').value); } catch (e) {} });
-$('bitrate').addEventListener('change', () => { try { localStorage.setItem('rec_bitrate', $('bitrate').value); } catch (e) {} });
+(function restore() {
+  const t = store.get('extra_terms'); if (t) $('terms').value = t;
+  const m = store.get('asr_model'); if (m) $('model').value = m;
+  const b = store.get('rec_bitrate', null); if (b !== null) $('bitrate').value = b;
+  const l = store.get('asr_lang', null); if (l !== null) $('lang').value = l;
+})();
+$('terms').addEventListener('input', () => store.set('extra_terms', $('terms').value));
+$('model').addEventListener('change', () => store.set('asr_model', $('model').value));
+$('bitrate').addEventListener('change', () => store.set('rec_bitrate', $('bitrate').value));
+$('lang').addEventListener('change', () => store.set('asr_lang', $('lang').value));
 
 function setStatus(msg, isErr) {
   $('status').textContent = msg;
   $('status').className = 'status' + (isErr ? ' err' : '');
 }
 
-/* ---- Groq call ---- */
-async function groqCall(blob, filename) {
+/* ---- busy / cancel state ---- */
+let isRec = false, busy = false, ctl = null, cancelled = false;
+function updateButtons() {
+  $('recBtn').disabled = busy;
+  $('fileBtn').disabled = busy || isRec;
+  $('polishBtn').disabled = busy || isRec;
+  $('cancelBtn').classList.toggle('hide', !(isRec || busy));
+  $('recBtn').classList.toggle('danger', isRec);
+  $('recBtn').classList.toggle('primary', !isRec);
+  $('recIcon').setAttribute('href', isRec ? '#i-stop' : '#i-mic');
+  const lbl = isRec ? 'Stop and transcribe' : 'Start recording';
+  $('recBtn').setAttribute('aria-label', lbl); $('recBtn').title = lbl;
+}
+const sleep = (ms, sig) => new Promise((res, rej) => {
+  const t = setTimeout(res, ms);
+  if (sig) sig.addEventListener('abort', () => { clearTimeout(t); rej(new DOMException('Aborted', 'AbortError')); }, { once: true });
+});
+$('cancelBtn').addEventListener('click', () => {
+  if (isRec && rec && rec.state === 'recording') { cancelled = true; rec.stop(); }
+  else if (ctl) { ctl.abort(); }
+});
+
+/* ---- Groq transcription ---- */
+async function groqCall(blob, filename, signal) {
   const key = $('key').value.trim();
-  if (!key) throw new Error('Paste your Groq API key first.');
+  if (!key) throw new Error('Add your Groq API key in Settings first.');
   const form = new FormData();
   form.append('file', blob, filename);
   form.append('model', $('model').value || MODEL);
@@ -189,17 +370,17 @@ async function groqCall(blob, filename) {
   if ($('lang').value) form.append('language', $('lang').value);
 
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await fetch(API, { method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: form });
+    const res = await fetch(API, { method: 'POST', headers: { Authorization: 'Bearer ' + key }, body: form, signal });
     if (res.status === 429 && attempt < 2) {
       const wait = Number(res.headers.get('retry-after')) || 5;
       setStatus('Rate limit reached. Waiting ' + wait + ' s...');
-      await new Promise(r => setTimeout(r, wait * 1000));
+      await sleep(wait * 1000, signal);
       continue;
     }
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.json()).error.message; } catch (e) {}
-      if (res.status === 401) throw new Error('Key not accepted (401). Check the key.');
+      if (res.status === 401) throw new Error('Key not accepted (401). Check the key in Settings.');
       if (res.status === 413) throw new Error('File too large (413).');
       throw new Error('Groq error ' + res.status + (detail ? ': ' + detail : ''));
     }
@@ -211,21 +392,27 @@ async function groqCall(blob, filename) {
 /* ---- polish (Groq chat model) ---- */
 const CHAT_API = 'https://api.groq.com/openai/v1/chat/completions';
 const CHAT_MODEL = 'openai/gpt-oss-120b';
-const BASE_RULES = 'You edit speech-to-text transcripts. Keep the SAME language as the input and never translate. ' +
-  'Do not add facts or opinions. Output only the edited text, with no intro and no notes.';
+const BASE_RULES = 'You are a fast, sharp editor for speech-to-text transcripts. ' +
+  'Keep the SAME language as the input and never translate. Do not invent facts or opinions. ' +
+  'Output ONLY the edited text with no intro, outro, or commentary.';
+
+const STRUCTURE_HINT = ' STRUCTURE TOOLS (use only where they genuinely help readability, never forced): ' +
+  '"## " headings and "### " subheadings for separate topics; "- " bullets for lists; nested sub-bullets (indent two spaces, then "- ") for details, examples or parts that belong under a parent point; "1. " numbered lists for steps or sequences; **bold** for key terms, definitions and takeaways; *italic* for subtle emphasis, new terms or species names. Prefer a plain paragraph when it reads better.';
+
 const STYLES = {
-  notes: 'You are a professional academic editor, not a content creator. Improve only how the text is written and presented; preserve what the speaker says. The input is a speech-to-text transcript and is the ONLY source of information. ' +
-    '1) PRESERVE: keep all meaning, information, facts, examples and explanations, in the speaker\'s order. Never add information, definitions, examples, concepts or explanations. Never remove meaningful information. Never summarise. ' +
-    '2) LANGUAGE: correct grammar, spelling and speech-to-text errors (fix misheard words into the correct subject terms, deciding from context). Remove repetitions, filler words, stutters and false starts. Apply self-corrections ("sorry", "I mean", "no wait", "actually", "not X, Y", "instead"): keep only the final corrected version at the place it belongs and delete the mistake and the correction phrase. Turn informal speech into clear, professional academic language without changing the meaning or the level of explanation. ' +
-    '3) STRUCTURE (Markdown): use "## " headings and "### " subheadings only when the content has clearly separate topics; use paragraphs, "- " bullets and "1. " numbered lists where they improve readability. Do not force headings or bullets when a simple paragraph is better. ' +
-    '4) EQUATIONS AND NOTATION: write maths, chemistry and units in proper notation using LaTeX. INLINE math between single dollar signs for expressions inside a sentence (for example $\\mathrm{H_2O}$, $\\mathrm{Ca^{2+}}$, $37\\,^\\circ\\mathrm{C}$). BLOCK math between double dollar signs on its own line for important or long equations and reactions, placed after the sentence that introduces it, which ends with a colon. Do not turn every scientific expression into a separate block. Keep the exact quantities, coefficients, symbols and relationships the speaker gave. Never show the LaTeX source separately, never put equations in code blocks, never use Unicode subscripts. Example: $$6\\,\\mathrm{CO_2} + 6\\,\\mathrm{H_2O} \\rightarrow \\mathrm{C_6H_{12}O_6} + 6\\,\\mathrm{O_2}$$ ' +
-    '5) ACCURACY: never silently change the speaker\'s statements. If something looks scientifically wrong or ambiguous, keep what the speaker intended instead of correcting it yourself. Correct only when the intended meaning is clearly determinable. If the meaning of something cannot be determined confidently, do not guess: reply with ONLY one line starting with "CLARIFY:" followed by a short question for the speaker. ' +
-    '6) OUTPUT: only the polished notes in Markdown, in the same language as the input. No introduction, summary, conclusion, explanation of changes or suggestions. Keep it concise while keeping all the information.',
-  bio: 'This is someone reading a biology text aloud. Keep EVERY sentence and the exact wording. Do not summarise, shorten, reword or add anything. Only: add correct punctuation and capital letters, fix every misheard word so it becomes the correct biology or scientific term (decide this yourself from the meaning and context of the whole text; do not rely on any fixed list), correct the spelling of scientific names and abbreviations (for example ATP, DNA, mRNA), write numbers and units correctly, and remove only accidental repeated words.',
-  clean: 'Fix punctuation, capital letters, spelling and obvious recognition mistakes. Remove filler words, stutters and false starts. Keep the speaker\'s own wording and meaning. Split into short paragraphs where the topic changes.',
-  formal: 'Rewrite as clear, well-organised, formal text. Fix grammar and punctuation, remove filler words, keep all the meaning.',
-  short: 'Write a short summary of the main points in 2 to 5 sentences.',
-  bullets: 'Turn the content into clear bullet points. Start each line with "- ". Keep every important point.'
+  notes: 'Edit into clean, well-formatted study/reference notes in Markdown. ' +
+    '1) QUICK CHECK & FIXES: Fix grammar, punctuation, capitalization, spelling, and speech-to-text mishearings from context. Remove filler words, stutters, and false starts; apply self-corrections cleanly. Quickly check equations, units, signs, subscripts/superscripts, and physical/math symbols so they are consistent and properly written without changing what the speaker meant. ' +
+    '2) FORMATTING & EMPHASIS: Use "## " and "### " headings for clear sections, concise paragraphs, and "- " bullets (with nested sub-bullets where a point has parts or examples) or "1. " lists where helpful. Use **bold** for key terms, definitions, main takeaways, and lead-ins, and *italic* for subtle emphasis, new terms on first mention, or nuance, without overdoing either. ' +
+    '3) EQUATIONS: Format inline math with single dollar signs ($...$) and standalone/important equations with double dollar signs ($$...$$) on their own line, never in code blocks. Keep all numbers, symbols, and relationships faithful to the speaker.' + STRUCTURE_HINT,
+  bio: 'Fix grammar, spelling, punctuation, capitalization, and biology/science terms from context while keeping every sentence and meaning intact. ' +
+    'Use **bold** for key scientific terms/structures and *italic* for species names or subtle emphasis. ' +
+    'Format formulas, ions, concentrations, and equations cleanly with $...$ or $$...$$. Remove filler words and accidental repeats. ' +
+    'Keep the speaker\'s order and wording; add headings, bullets or nested bullets only if the text is clearly a list or has clearly separate topics.',
+  clean: 'Clean up grammar, punctuation, spelling, and obvious speech-to-text errors while keeping the speaker\'s natural wording. ' +
+    'Add light **bold** for key points and *italic* for emphasis where helpful, and check any numbers or equations for clarity. Split into short paragraphs where the topic changes, and use a bullet list only if the speaker is clearly listing items.',
+  formal: 'Rewrite into clear, polished, formal prose. Fix all grammar, punctuation, and wording slips, check equations/units cleanly, and use **bold** and *italic* sparingly for clarity.' + STRUCTURE_HINT,
+  short: 'Summarize the main points in 2 to 5 clear sentences. Use **bold** for the key takeaway and keep any equations or numbers accurate.',
+  bullets: 'Organize into clear "- " bullet points. Put a **bold** lead-in on each bullet, use *italic* for light emphasis, group related details as nested sub-bullets (indent two spaces), add a short "## " heading when there are clearly separate topics, and fix grammar and equations cleanly.'
 };
 let beforePolish = null;
 
@@ -240,12 +427,12 @@ function splitForPolish(text, maxLen) {
   return parts;
 }
 
-async function polishCall(text, style) {
+async function polishCall(text, style, signal) {
   const key = $('key').value.trim();
-  if (!key) throw new Error('Paste your Groq API key first.');
+  if (!key) throw new Error('Add your Groq API key in Settings first.');
   for (let attempt = 0; attempt < 3; attempt++) {
     const res = await fetch(CHAT_API, {
-      method: 'POST',
+      method: 'POST', signal,
       headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: CHAT_MODEL, temperature: 0.2, reasoning_effort: 'low',
@@ -258,7 +445,7 @@ async function polishCall(text, style) {
     if (res.status === 429 && attempt < 2) {
       const wait = Number(res.headers.get('retry-after')) || 8;
       setStatus('Rate limit reached. Waiting ' + wait + ' s...');
-      await new Promise(r => setTimeout(r, wait * 1000));
+      await sleep(wait * 1000, signal);
       continue;
     }
     if (!res.ok) {
@@ -271,14 +458,13 @@ async function polishCall(text, style) {
   throw new Error('Rate limit still active. Try again in a minute.');
 }
 
-async function polishText(text) {
+async function polishText(text, signal) {
   const style = $('style').value;
-  // short summary needs the whole text in one go when possible
   const parts = splitForPolish(text, style === 'short' ? 20000 : 5000);
   const out = [];
   for (let i = 0; i < parts.length; i++) {
     setStatus('Polishing' + (parts.length > 1 ? ' part ' + (i + 1) + ' of ' + parts.length : '') + '...');
-    const r = await polishCall(parts[i], style);
+    const r = await polishCall(parts[i], style, signal);
     if (/^\s*CLARIFY:/i.test(r)) throw new Error(r.trim());
     out.push(r);
   }
@@ -309,46 +495,48 @@ function pcmToWav(pcm, sr) {
 }
 
 async function transcribe(blob, name) {
-  $('recBtn').disabled = true;
+  busy = true; ctl = new AbortController(); updateButtons();
+  const signal = ctl.signal;
   try {
     const t0 = performance.now();
     let text = '';
     if (blob.size <= MAX_DIRECT) {
       setStatus('Transcribing (' + (blob.size / 1048576).toFixed(1) + ' MB)...');
-      text = await groqCall(blob, name);
+      text = await groqCall(blob, name, signal);
     } else {
       setStatus('Big file. Preparing audio...');
       const pcm = await toPcm16k(blob);
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
       const step = CHUNK_SECONDS * 16000;
       const parts = Math.ceil(pcm.length / step);
       const texts = [];
       for (let i = 0; i < parts; i++) {
         setStatus('Transcribing part ' + (i + 1) + ' of ' + parts + '...');
-        texts.push(await groqCall(pcmToWav(pcm.subarray(i * step, (i + 1) * step), 16000), 'part' + i + '.wav'));
+        texts.push(await groqCall(pcmToWav(pcm.subarray(i * step, (i + 1) * step), 16000), 'part' + i + '.wav', signal));
       }
       text = texts.join(' ');
     }
     text = text.trim();
     const old = $('out').value ? $('out').value.trim() + '\n\n' : '';
-    let note = '';
     $('out').value = old + text; refreshPreview();
-    setStatus('Done in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s.' + note, !!note);
+    setStatus('Done in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s.');
   } catch (e) {
-    console.error(e);
-    setStatus(e.message, true);
+    if (e.name === 'AbortError') setStatus('Cancelled.');
+    else { console.error(e); setStatus(e.message, true); }
   } finally {
-    $('recBtn').disabled = false;
+    busy = false; ctl = null; updateButtons();
   }
 }
 
 /* ---- file upload ---- */
+$('fileBtn').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', e => {
   const f = e.target.files[0];
   if (f) transcribe(f, f.name || 'audio');
   e.target.value = '';
 });
 
-/* ---- recording indicator: pulsing dot, timer, live sound bars ---- */
+/* ---- recording indicator ---- */
 let meterCtx = null, meterRaf = 0, meterTimer = 0;
 function startMeter(s) {
   $('recBox').classList.add('on');
@@ -366,9 +554,7 @@ function startMeter(s) {
     const bars = $('bars').children;
     const draw = () => {
       an.getByteFrequencyData(data);
-      for (let i = 0; i < bars.length; i++) {
-        bars[i].style.height = Math.max(4, (data[i + 1] / 255) * 32) + 'px';
-      }
+      for (let i = 0; i < bars.length; i++) bars[i].style.height = Math.max(4, (data[i + 1] / 255) * 30) + 'px';
       meterRaf = requestAnimationFrame(draw);
     };
     draw();
@@ -388,7 +574,7 @@ $('recBtn').addEventListener('click', async () => {
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   } catch (e) {
-    setStatus('Microphone not allowed. This page must open over https and you must allow the mic.', true);
+    setStatus('Microphone not allowed. Open this page over https and allow the mic.', true);
     return;
   }
   const type = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
@@ -401,19 +587,26 @@ $('recBtn').addEventListener('click', async () => {
   } catch (e) {
     rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
   }
-  chunks = [];
+  chunks = []; cancelled = false;
   rec.ondataavailable = ev => { if (ev.data.size) chunks.push(ev.data); };
   rec.onstop = () => {
     stopMeter();
     stream.getTracks().forEach(t => t.stop());
-    $('recBtn').textContent = 'Start recording';
+    isRec = false;
+    if (cancelled) {
+      cancelled = false; chunks = [];
+      updateButtons();
+      setStatus('Recording discarded. Nothing was uploaded.');
+      return;
+    }
+    updateButtons();
     const mime = rec.mimeType || 'audio/webm';
     const blob = new Blob(chunks, { type: mime });
     transcribe(blob, 'recording.' + (mime.includes('mp4') ? 'mp4' : 'webm'));
   };
   rec.start();
+  isRec = true; updateButtons();
   startMeter(stream);
-  $('recBtn').textContent = 'Stop and transcribe';
   setStatus('Recording...');
 });
 
@@ -429,16 +622,17 @@ $('clearBtn').addEventListener('click', () => {
 $('polishBtn').addEventListener('click', async () => {
   const text = $('out').value.trim();
   if (!text) { setStatus('Nothing to polish yet.', true); return; }
-  $('polishBtn').disabled = true;
+  busy = true; ctl = new AbortController(); updateButtons();
   try {
-    const result = await polishText(text);
+    const result = await polishText(text, ctl.signal);
     beforePolish = $('out').value;
     $('out').value = result; refreshPreview();
     $('undoBtn').disabled = false;
     setStatus('Polished.');
   } catch (e) {
-    console.error(e); setStatus(e.message, true);
-  } finally { $('polishBtn').disabled = false; }
+    if (e.name === 'AbortError') setStatus('Cancelled. Text unchanged.');
+    else { console.error(e); setStatus(e.message, true); }
+  } finally { busy = false; ctl = null; updateButtons(); }
 });
 $('undoBtn').addEventListener('click', () => {
   if (beforePolish === null) return;
@@ -480,20 +674,22 @@ async function refreshPreview() {
   if (!previewOn) return;
   try {
     await loadLibs();
-    $('preview').innerHTML = renderMarkdown($('out').value) || '<p class="hint">Nothing to preview.</p>';
+    $('preview').innerHTML = renderMarkdown($('out').value) || '<p class="status">Nothing to preview.</p>';
   } catch (e) { setStatus(e.message, true); previewOn = false; showPreviewState(); }
 }
 function showPreviewState() {
   $('preview').style.display = previewOn ? 'block' : 'none';
   $('out').style.display = previewOn ? 'none' : 'block';
-  $('prevBtn').textContent = previewOn ? 'Edit' : 'Preview';
+  $('prevIcon').setAttribute('href', previewOn ? '#i-pencil' : '#i-eye');
+  const lbl = previewOn ? 'Edit' : 'Preview';
+  $('prevBtn').setAttribute('aria-label', lbl); $('prevBtn').title = lbl;
 }
 $('prevBtn').addEventListener('click', () => { previewOn = !previewOn; showPreviewState(); refreshPreview(); });
 
-try {
-  const st = localStorage.getItem('polish_style'); if (st && STYLES[st]) $('style').value = st;
-} catch (e) {}
-$('style').addEventListener('change', () => { try { localStorage.setItem('polish_style', $('style').value); } catch (e) {} });
+const st = store.get('polish_style'); if (st && STYLES[st]) $('style').value = st;
+$('style').addEventListener('change', () => store.set('polish_style', $('style').value));
+
+updateButtons();
 </script>
 </body>
 </html>
